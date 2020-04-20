@@ -61,7 +61,7 @@ const App = () => {
     content = 
       <div id="countryList">
         {filteredList.map(country => 
-          <div key={country.callingCodes} style={{ margin: '10px 0'}}>
+          <div key={country.name} style={{ margin: '10px 0'}}>
             <span >{country.name}</span>
             <button onClick={() => handleButtonClick(country)} value={country.index}> show</button>
           </div>

@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+import personService from './services/persons'
+
+const Message = ({ message, fontColor }) => {
+  if (message == null) {
+    return null
+  }
+  
+  return (
+    <div className="message" style={fontColor}>
+      {message}
+    </div>
+  )
+}
 
 const Filter = ({ changeFilterText, filterText }) => {
   return (
@@ -25,12 +37,35 @@ const PersonForm = ({ addPhone, newName, changeName, newNumber, changeNumber }) 
   )
 }
 
-const Persons = ({ personsToShow }) => {
-  return (
-    <div>
-      {personsToShow.map(person => <p key={person.name}>{person.name} {person.number}</p>)}
-    </div>
-  )
+const deletePerson = (id, name, persons, setPersons) => {
+  const result = window.confirm(`Delete ${name}?`)
+
+  if (result) {
+    personService
+    .remove(id)
+    .then(response => {
+      setPersons(persons.filter(person => person.id !== id))
+    })
+  }
+}
+
+const Persons = ({ persons, personsToShow, setPersons }) => {
+  if (personsToShow.length === 0) {
+    return null
+  } else {
+    return (
+      <>
+        {personsToShow.map(person => 
+          <React.Fragment key={person.id}>
+            <span>{person.name} {person.number}</span> {" "}
+            <button onClick={() => deletePerson(person.id, person.name, persons, setPersons)}>delete</button> 
+            <br/>
+          </React.Fragment>
+        )}
+      </>
+    )
+  }
+  
 }
 
 const App = () => {
@@ -38,20 +73,22 @@ const App = () => {
   const [ newName, setNewName ] = useState('')
   const [ newNumber, setNewNumber ] = useState('')
   const [ filterText, setFilterText ] = useState('')
+  const [message, setMessage] = useState(null)
+  const [fontColor, setFontColor] = useState({
+    color: 'green'
+  })
 
   useEffect(() => {
-    axios
-      .get('http://localhost:3001/persons')
-      .then(response => {
-        setPersons(response.data)
+    personService
+      .getAll()
+      .then(personList => {
+        setPersons(personList)
       })
   }, [])
 
   const checkDuplicate = (name) => {
-    name = name.toLowerCase()
-    console.log("checking", name, "name")
     for (const person of persons) {
-      if (person.name.toLowerCase() === name) {
+      if (person.name === name) {
         return true
       }
     }
@@ -63,18 +100,50 @@ const App = () => {
     if (newName === '') {
       alert("Empty name submitted")
     } else if (checkDuplicate(newName)) {
-      alert(`${newName} is already added to phonebook`)
+      const result = window.confirm(`${newName} is already added to phonebook, replace the old number with a new one?`)
+      
+      if (result) {
+        const modifyPerson = persons.filter(person => person.name === newName)[0]
+        const id = modifyPerson.id
+        const newPerson = {...modifyPerson, number: newNumber}
+        personService
+          .update(id, newPerson)
+          .then(responsePersons => {
+            setPersons(persons.map(person => person.id !== id ? person : newPerson))
+          })
+          .catch(error => {
+            setFontColor({
+              color: 'red'
+            })
+            setMessage(`Information of ${newName} has already been removed from server`)
+            setTimeout(() => {
+              setMessage(null)
+            }, 5000)
+          })
+      } 
       setNewName('')
       setNewNumber('')
     } else {
       const newPerson = {
         name: newName,
-        number: newNumber
+        number: newNumber,
+        id: persons.length + 1
       }
 
-      setPersons(persons.concat(newPerson))
-      setNewName('')
-      setNewNumber('')
+      personService
+        .add(newPerson)
+        .then(response => {
+          setPersons(persons.concat(response))
+          setNewName('')
+          setNewNumber('')
+          setFontColor({
+            color: 'green'
+          })
+          setMessage(`Added ${newPerson.name}`)
+          setTimeout(() => {
+            setMessage(null)
+          }, 5000)
+        })
     }
   }
 
@@ -96,15 +165,15 @@ const App = () => {
 
   return (
     <div>
-      <h2>Phonebook</h2>
-
+      <h1>Phonebook</h1>
+      <Message message={message} fontColor={fontColor} />
       <Filter changeFilterText={changeFilterText} filterText={filterText} />
 
-      <h3>Add a new contact</h3>
+      <h2>Add a new contact</h2>
       <PersonForm addPhone={addPhone} newName={newName} changeName={changeName} newNumber={newNumber} changeNumber={changeNumber} />
 
-      <h3>Numbers</h3>
-      <Persons personsToShow={personsToShow} />
+      <h2>Numbers</h2>
+      <Persons persons={persons} personsToShow={personsToShow} setPersons={setPersons} />
     </div>
   )
 }
